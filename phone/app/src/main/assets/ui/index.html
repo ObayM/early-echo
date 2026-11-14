@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Early Echo</title>
+<style>
+@font-face { font-family: Inter; src: url(inter.woff2) format("woff2"); font-weight: 100 900; font-display: block; }
+:root {
+  --ground: #000; --surface: #111; --raised: #1d1d1d; --control: #444;
+  --ink: #fff; --muted: #b4b4b4; --faint: #8f8f8f;
+  --flame: #ff9a3d;
+  --top: 0px; --bottom: 0px; --gutter: 20px;
+}
+body.alarm { --ground: #ff9a3d; --surface: #f28c2f; --raised: #e98326; --control: #000; --ink: #000; --muted: #2b1606; --faint: #3d2209; --flame: #000; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--ground); }
+body {
+  font: 400 16px/1.45 Inter, system-ui, sans-serif; color: var(--ink); font-feature-settings: "tnum", "cv11";
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; overflow: hidden;
+  display: grid; grid-template-rows: auto 1fr auto; padding: var(--top) 0 var(--bottom);
+  transition: background-color .35s ease, color .35s ease;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.bar { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 var(--gutter); }
+.bar svg { width: 24px; height: 24px; color: var(--flame); flex: none; }
+.bar b { font-weight: 600; font-size: 16px; }
+.bar .link { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+main { overflow-y: auto; overflow-x: hidden; padding: 4px var(--gutter) 24px; scrollbar-width: none; }
+main::-webkit-scrollbar { display: none; }
+
+h1 { font-size: 44px; line-height: 46px; font-weight: 600; letter-spacing: -0.035em; text-wrap: balance; max-width: 11ch; }
+h1.long { font-size: 36px; line-height: 39px; max-width: 13ch; }
+.lede { margin-top: 12px; font-size: 16px; line-height: 23px; color: var(--muted); max-width: 32ch; text-wrap: pretty; }
+
+.stage { margin: 24px calc(-1 * var(--gutter)) 0; }
+.stage canvas { display: block; width: 100%; height: 96px; }
+.ends { display: flex; justify-content: space-between; padding: 2px var(--gutter) 0; font-size: 13px; color: var(--muted); }
+.ends span { max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ends span:last-child { text-align: right; }
+
+.panel { margin-top: 24px; }
+.figures { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 12px; }
+.figures div { background: var(--surface); border-radius: 18px; padding: 14px 14px 12px; transition: background-color .35s ease; }
+.figures dd { font-size: 26px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; }
+.figures dd small { font-size: 15px; font-weight: 500; letter-spacing: 0; margin-left: 2px; }
+.figures dt { margin-top: 2px; font-size: 13px; line-height: 17px; color: var(--muted); }
+.figures .hot dd { color: var(--flame); }
+
+.chart { margin-top: 12px; background: var(--surface); border-radius: 18px; padding: 14px 14px 10px; transition: background-color .35s ease; }
+.chart header { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
+.chart header b { color: var(--ink); font-weight: 600; font-size: 15px; }
+.chart canvas { display: block; width: 100%; height: 150px; margin-top: 8px; }
+
+.debug { margin-top: 12px; background: var(--surface); border-radius: 18px; padding: 14px; transition: background-color .35s ease; }
+.debug header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.debug header b { font-size: 15px; font-weight: 600; }
+.debug header button { font-size: 14px; color: var(--muted); text-decoration: underline; text-decoration-color: var(--control); text-underline-offset: 4px; }
+.debug h4 { margin-top: 16px; font-size: 13px; font-weight: 600; }
+.debug dl { margin-top: 6px; font-size: 14px; line-height: 20px; }
+.debug dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 1.5px 0; }
+.debug dt { color: var(--muted); min-width: 0; }
+.debug dd { text-align: right; white-space: nowrap; }
+.debug p { margin-top: 14px; font-size: 13px; line-height: 18px; color: var(--muted); }
+
+.steps { list-style: none; display: grid; gap: 2px; }
+.steps li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 12px; min-height: 52px; padding: 0 2px; font-size: 16px; }
+.steps i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--control); justify-self: center; }
+.steps li.done i { border-color: var(--ink); background: var(--ink); }
+.steps li.done i::after { content: ""; display: block; width: 5px; height: 9px; border: solid var(--ground); border-width: 0 2px 2px 0; transform: translate(5.5px, 2px) rotate(45deg); }
+.steps li.wait i { border-color: var(--ink); border-right-color: transparent; animation: spin 1s linear infinite; }
+.steps span { color: var(--muted); font-size: 14px; }
+.hint { margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: var(--surface); font-size: 15px; line-height: 21px; }
+
+.count { display: flex; align-items: baseline; gap: 10px; }
+.count b { font-size: 72px; line-height: 72px; font-weight: 600; letter-spacing: -0.04em; }
+.count span { color: var(--muted); font-size: 16px; }
+.progress { margin-top: 16px; height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: transform .25s linear; }
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; font-size: 15px; }
+.facts dt { color: var(--muted); }
+.facts dd { text-align: right; overflow-wrap: anywhere; }
+.textlink { margin-top: 20px; font-size: 15px; text-decoration: underline; text-decoration-color: var(--control); text-underline-offset: 4px; }
+
+footer { display: flex; gap: 10px; padding: 12px var(--gutter) 16px; }
+footer:empty { display: none; }
+.btn { height: 52px; border-radius: 26px; padding: 0 20px; font-size: 16px; font-weight: 600; white-space: nowrap; transition: transform .12s ease, background-color .35s ease, color .35s ease; }
+.btn:active { transform: scale(.97); }
+.btn.main { flex: 1; background: var(--ink); color: var(--ground); }
+.btn.quiet { background: var(--surface); color: var(--ink); }
+.btn.wide { flex: 1; padding: 0 16px; }
+.btn.quiet[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+.btn.round { width: 52px; padding: 0; flex: none; display: grid; place-items: center; }
+.btn.round svg { width: 22px; height: 22px; }
+
+.sheet { position: fixed; inset: 0; z-index: 10; display: grid; align-items: end; background: rgba(0,0,0,.55); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.sheet.open { opacity: 1; pointer-events: auto; }
+.sheet > div { background: #161616; color: #fff; border-radius: 24px 24px 0 0; padding: 10px var(--gutter) calc(20px + var(--bottom)); max-height: 88vh; overflow-y: auto; transform: translateY(24px); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.sheet.open > div { transform: none; }
+.sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: #444; margin: 0 auto 14px; }
+.sheet h2 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.sheet h3 { margin-top: 22px; font-size: 15px; font-weight: 600; }
+.sheet p { margin-top: 6px; font-size: 14px; line-height: 20px; color: #b4b4b4; }
+.seg { display: flex; margin-top: 10px; padding: 3px; border-radius: 22px; background: #000; }
+.seg button { flex: 1; height: 38px; border-radius: 19px; font-size: 15px; color: #b4b4b4; }
+.seg button[aria-pressed="true"] { background: #2a2a2a; color: #fff; font-weight: 600; }
+.seg button:disabled { opacity: .45; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.toggle b { font-size: 15px; font-weight: 600; display: block; }
+.switch { width: 52px; height: 32px; border-radius: 16px; background: #444; position: relative; flex: none; transition: background-color .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch[aria-checked="true"] { background: #fff; }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: #000; }
+.sheet .row { display: flex; gap: 10px; margin-top: 24px; }
+.sheet .row .btn { flex: 1; background: #262626; color: #fff; }
+.sheet input { width: 100%; height: 52px; margin-top: 14px; border-radius: 14px; border: 0; background: #000; color: #fff; padding: 0 16px; font: 500 18px Inter, sans-serif; outline: 2px solid transparent; }
+.sheet input:focus { outline-color: #fff; }
+
+.toast { position: fixed; left: var(--gutter); right: var(--gutter); bottom: calc(84px + var(--bottom)); z-index: 20; padding: 14px 16px; border-radius: 16px; background: #fff; color: #000; font-size: 15px; line-height: 20px; font-weight: 500; opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: none; }
+
+[hidden] { display: none !important; }
+.enter { animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
+.enter + .enter { animation-delay: .06s; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .enter, .steps li.wait i { animation: none; } body, .btn, .sheet > div { transition: none; } }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+</style>
+</head>
+<body data-phase="mic">
+<div class="bar">
+  <svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="7" cy="14" r="3.2" fill="currentColor"/><path d="M13 7.5a9.2 9.2 0 0 1 0 13M18 4a14 14 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <b>Early Echo</b>
+  <span class="link" id="link"></span>
+</div>
+
+<main id="main">
+  <h1 id="title"></h1>
+  <p class="lede" id="lede"></p>
+
+  <div class="stage" id="stage" hidden>
+    <canvas id="line" aria-hidden="true"></canvas>
+    <div class="ends"><span id="meName">This phone</span><span id="peerName"></span></div>
+  </div>
+
+  <section class="panel" id="search" hidden>
+    <dl class="facts" id="facts"></dl>
+    <button class="textlink" id="typeAddress">Type the other phone's address</button>
+    <p class="hint">Put the phones 0.5 to 2 m apart with their speakers facing each other. Early Echo turns the volume all the way up while it runs.</p>
+  </section>
+
+  <section class="panel" id="start" hidden>
+    <ol class="steps" id="steps"></ol>
+    <p class="hint" id="startHint" hidden></p>
+  </section>
+
+  <section class="panel" id="learn" hidden>
+    <div class="count"><b id="countNum">10</b><span>seconds left</span></div>
+    <div class="progress"><i id="countBar"></i></div>
+  </section>
+
+  <section class="panel" id="watch" hidden>
+    <dl class="figures">
+      <div id="figShift"><dd id="shift">0.0<small>µs</small></dd><dt>earlier than usual</dt></div>
+      <div><dd id="thr">–</dd><dt>alarm at</dt></div>
+      <div><dd id="signal">–</dd><dt>signal</dt></div>
+    </dl>
+    <div class="chart">
+      <header><b>Last minute</b><span id="chartNote"></span></header>
+      <canvas id="chart" aria-label="How much earlier than usual the sound arrived, over the last minute"></canvas>
+    </div>
+    <p class="hint" id="watchHint" hidden></p>
+  </section>
+
+  <section class="debug" id="debug" hidden>
+    <header><b>Debug</b><button id="setDistance">Set the distance</button></header>
+    <div id="debugBody"></div>
+    <p>Start is the average while the room was learned. Reference is what the alarm compares with: a line through the readings from 5 to 35 s ago. A shorter round trip means faster sound, so warmer air, or phones closer together.</p>
+    <p>Speeds take each phone to hear its own chirp from about 10 cm away, so the speed itself can be off by a few m/s. The changes can't.</p>
+  </section>
+</main>
+
+<footer id="actions"></footer>
+
+<div class="sheet" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div>
+    <div class="grab"></div>
+    <h2 id="settingsTitle">Settings</h2>
+    <div class="row"><button class="btn" id="saveTest">Save this test</button></div>
+    <p>Writes the readings and notes to Download/Early Echo.</p>
+    <h3>Sensitivity</h3>
+    <div class="seg" id="sens" role="group" aria-label="Sensitivity">
+      <button data-v="LOW">Low</button><button data-v="NORMAL">Normal</button><button data-v="HIGH">High</button>
+    </div>
+    <p id="sensNote"></p>
+    <h3>Chirp pitch</h3>
+    <div class="seg" id="band" role="group" aria-label="Chirp pitch">
+      <button data-v="HIGH">High, quiet</button><button data-v="MID">Middle, louder</button>
+    </div>
+    <p id="bandNote"></p>
+    <div class="toggle">
+      <div><b>Save the sound too</b><p>Adds a sound file to each saved test, about 6 MB a minute.</p></div>
+      <button class="switch" id="sound" role="switch" aria-checked="false" aria-label="Save the sound too"></button>
+    </div>
+    <div class="toggle">
+      <div><b>Debug numbers</b><p>Shows the speed of sound and the raw timing under the chart.</p></div>
+      <button class="switch" id="debugOn" role="switch" aria-checked="false" aria-label="Debug numbers"></button>
+    </div>
+    <div class="row"><button class="btn" id="relearn">Learn the room again</button></div>
+    <h3>How it works</h3>
+    <p>Each phone plays a short chirp 23 times a second and listens for both. Sound moves faster through hot air, so when warm air crosses the line between them, both chirps arrive a little early.</p>
+    <p>Tap Not a flame when something else crosses the line, like a person, a hand or a fan, and again when it stops. Saved tests then show what the alarm should ignore.</p>
+    <p>Adding the two directions together cancels moving air (it speeds one way up as much as it slows the other) and the two phones' clocks. What is left is heat.</p>
+    <div class="row"><button class="btn" id="closeSettings">Done</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="address" role="dialog" aria-modal="true" aria-labelledby="addressTitle">
+  <div>
+    <div class="grab"></div>
+    <h2 id="addressTitle">The other phone's address</h2>
+    <p>It's shown on the other phone's screen, under this phone's name. Use it if the phones don't find each other by themselves.</p>
+    <input id="addressInput" inputmode="decimal" autocomplete="off" placeholder="192.168.1.20" aria-label="Address">
+    <div class="row"><button class="btn" id="addressCancel">Cancel</button><button class="btn" id="addressGo" style="background:#fff;color:#000">Connect</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="distance" role="dialog" aria-modal="true" aria-labelledby="distanceTitle">
+  <div>
+    <div class="grab"></div>
+    <h2 id="distanceTitle">Distance between the phones</h2>
+    <p>Measure from speaker to speaker with a tape, in cm. The speed of sound is then worked out over the real distance, instead of taking the air to be 20 °C at the start.</p>
+    <input id="distanceInput" inputmode="decimal" autocomplete="off" placeholder="100" aria-label="Distance in cm">
+    <div class="row"><button class="btn" id="distanceClear">Clear</button><button class="btn" id="distanceGo" style="background:#fff;color:#000">Use it</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const bridge = window.EE || null
+  const fmt = (v, d = 1) => (v == null ? '–' : (Math.abs(v) < 0.05 && d === 1 ? 0 : v).toFixed(d))
+  let s = { phase: 'mic' }
+  let shown = ''
+  let toastTimer = 0
+  let debugOn = false
+  try { debugOn = localStorage.getItem('ee-debug') === '1' } catch (_) {}
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  function toast(text) {
+    const t = $('toast')
+    t.textContent = text
+    t.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => t.classList.remove('show'), 4200)
+  }
+
+  function tap() { bridge && bridge.tap() }
+
+  function words() {
+    const peer = s.peer || 'the other phone'
+    switch (s.phase) {
+      case 'mic': return ['Early Echo needs the microphone', 'It listens for the other phone’s chirp. Nothing is kept unless you save a test.']
+      case 'nomic': return ['The microphone is off', 'Early Echo can’t hear the chirps without it. Turn it on in the app’s settings.']
+      case 'search': return ['Waiting for the second phone', 'Open Early Echo on another phone. Both need the same Wi-Fi, or one phone’s hotspot.']
+      case 'start': return ['Found ' + peer, 'Lining up the two chirps. Keep both phones still.']
+      case 'learn': return ['Learning the room', 'Keep the air between the phones still. Don’t light anything yet.']
+      default:
+        if (s.alarm) return ['Hot air', 'The sound is arriving ' + fmt(s.shift) + ' µs early' + (s.alarmFor != null ? ', for ' + Math.max(1, Math.round(s.alarmFor)) + ' s.' : '.')]
+        if (s.blocked) return ['Something’s in the way', 'The sound is going round it, so readings pause until it moves.' + (s.blockedFor > 20 ? ' If a phone was moved, tap Learn the room again under •••.' : '')]
+        return ['All clear', 'No hot air between the phones.']
+    }
+  }
+
+  const MORE = '<button class="btn quiet round" data-do="settings" aria-label="More"><svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="4" cy="11" r="2" fill="currentColor"/><circle cx="11" cy="11" r="2" fill="currentColor"/><circle cx="18" cy="11" r="2" fill="currentColor"/></svg></button>'
+  function actions() {
+    const f = $('actions')
+    let html = ''
+    if (s.phase === 'mic' || s.phase === 'nomic') html = '<button class="btn main" data-do="mic">' + (s.phase === 'mic' ? 'Allow the microphone' : 'Open settings') + '</button>'
+    else if (s.phase === 'watch' || s.phase === 'learn') html =
+      '<button class="btn main wide" data-do="mark">' + (s.lit ? 'Flame out' : 'Flame lit') + '</button>' +
+      '<button class="btn quiet wide" data-do="other" aria-pressed="' + !!s.other + '">' + (s.other ? 'It stopped' : 'Not a flame') + '</button>' +
+      MORE
+    else if (s.phase === 'start') html = MORE.replace('class="btn', 'style="margin-left:auto" class="btn')
+    if (f.dataset.html !== html) { f.innerHTML = html; f.dataset.html = html }
+  }
+
+  function render() {
+    document.body.dataset.phase = s.phase
+    const alarm = s.phase === 'watch' && !!s.alarm
+    if (document.body.classList.contains('alarm') !== alarm) {
+      document.body.classList.toggle('alarm', alarm)
+      bridge && bridge.bars(alarm)
+    }
+    const [title, lede] = words()
+    const t = $('title')
+    t.textContent = title
+    t.classList.toggle('long', title.length > 20)
+    $('lede').textContent = lede
+    if (shown !== s.phase + alarm) {
+      shown = s.phase + alarm
+      for (const el of [t, $('lede')]) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter') }
+    }
+    $('link').textContent = s.peer ? 'Paired with ' + s.peer : (s.phase === 'search' ? 'Not paired' : '')
+    $('stage').hidden = s.phase === 'mic' || s.phase === 'nomic'
+    $('meName').textContent = s.me ? 'This phone' : ''
+    $('peerName').textContent = s.peer || 'Second phone'
+    for (const id of ['search', 'start', 'learn', 'watch']) $(id).hidden = s.phase !== id
+
+    if (s.phase === 'search') {
+      const rows = [['Name', s.me || '–'], ['Address', (s.addresses && s.addresses.length ? s.addresses.join(', ') : 'No network')]]
+      $('facts').innerHTML = rows.map(([k, v]) => '<dt>' + k + '</dt><dd>' + esc(v) + '</dd>').join('')
+    }
+    if (s.phase === 'start') {
+      const steps = [
+        ['Hearing this phone', s.hearOwn, s.hearOwn ? Math.round(s.ownDb) + ' dB' : ''],
+        ['Hearing ' + (s.peer || 'the other phone'), s.hearOther, s.hearOther ? Math.round(s.otherDb) + ' dB' : ''],
+        ['Clocks matched', s.clocks, ''],
+      ]
+      let waiting = false
+      $('steps').innerHTML = steps.map(([k, ok, v]) => {
+        const cls = ok ? 'done' : waiting ? '' : 'wait'
+        if (!ok) waiting = true
+        return '<li class="' + cls + '"><i></i>' + esc(k) + '<span>' + v + '</span></li>'
+      }).join('')
+      const stuck = !s.hearOther && s.seconds > 5
+      const weak = s.hearOther && s.otherDb < WEAK && s.seconds > 5
+      $('startHint').hidden = !stuck && !weak
+      if (stuck) $('startHint').textContent = 'Can’t hear ' + (s.peer || 'the other phone') + ' yet. Turn both volumes up and point the speakers at each other, 0.5 to 2 m apart.'
+      else if (weak) $('startHint').textContent = weakText()
+    }
+    if (s.phase === 'learn') {
+      const left = s.learnLeft == null ? 12 : s.learnLeft
+      $('countNum').textContent = Math.ceil(left)
+      $('countBar').style.transform = 'scaleX(' + Math.min(1, Math.max(0, 1 - left / 12)) + ')'
+    }
+    if (s.phase === 'watch') {
+      $('shift').innerHTML = fmt(s.shift) + '<small>µs</small>'
+      $('thr').innerHTML = fmt(s.threshold) + '<small>µs</small>'
+      $('signal').innerHTML = s.hearOther ? Math.round(s.otherDb) + '<small>dB</small>' : '–'
+      $('figShift').classList.toggle('hot', !alarm && s.threshold != null && s.shift > s.threshold / 2)
+      $('chartNote').textContent = s.noise != null ? 'Room wobble ' + fmt(s.noise, 2) + ' µs' : ''
+      const deaf = !s.hearOther
+      const weak = !deaf && s.otherDb < WEAK
+      $('watchHint').hidden = !deaf && !weak
+      if (deaf) $('watchHint').textContent = 'Can’t hear ' + (s.peer || 'the other phone') + ' right now. Readings pause until it’s back.'
+      else if (weak) $('watchHint').textContent = weakText()
+    }
+    $('debug').hidden = !debugOn || !['start', 'learn', 'watch'].includes(s.phase)
+    if (!$('debug').hidden) debugView()
+    if (s.notice && s.notice !== render.lastNotice) toast(s.notice)
+    render.lastNotice = s.notice
+    if (s.error && s.error !== render.lastError) toast(s.error)
+    render.lastError = s.error
+    actions()
+    settingsState()
+  }
+
+  const WEAK = 25
+  function weakText() {
+    return 'The signal is weak (' + Math.round(s.otherDb) + ' dB), so readings will be rough.' + (s.band === 'HIGH' ? ' Try Middle pitch under the ••• button, or move the phones closer.' : ' Move the phones closer, or turn off any sound effects (Dolby, equaliser).')
+  }
+
+  function debugView() {
+    const d = s.debug || {}
+    const num = (v, k, unit) => (v == null ? '–' : v.toFixed(k) + unit)
+    const signed = (v, k, unit) => (v == null ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(k) + unit)
+    const less = (a, b) => (a == null || b == null ? null : a - b)
+    const measured = d.measured != null
+    const sum = less(d.sum, d.first)
+    const mm = sum == null || d.speed == null ? null : -sum * 1e-6 * d.speed / 2 * 1000
+    const groups = [
+      ['Speed of sound', [
+        ['Now', num(d.speed, 2, ' m/s')],
+        ['Reference', num(d.speedRef, 2, ' m/s')],
+        ['At the start', num(d.speedFirst, 2, ' m/s')],
+        ['Change since the start', signed(less(d.speed, d.speedFirst), 3, ' m/s')],
+        ['Air, from the speed', measured ? num(d.temp, 1, ' °C') : 'set the distance'],
+        ['Air change since the start', signed(less(d.temp, d.tempFirst), 2, ' °C')],
+      ]],
+      ['Round trip', [
+        ['Now', num(d.sum, 2, ' µs')],
+        ['Reference', num(d.base, 2, ' µs')],
+        ['At the start', num(d.first, 2, ' µs')],
+        ['Change since the start', signed(sum, 2, ' µs')],
+        ['Same as moving a phone', mm == null ? '–' : Math.abs(mm).toFixed(2) + ' mm' + (Math.abs(mm) < 0.005 ? '' : mm > 0 ? ' closer' : ' away')],
+        ['Lowest, highest', d.low == null ? '–' : d.low.toFixed(1) + ', ' + d.high.toFixed(1) + ' µs'],
+        ['Last single reading', num(d.raw, 2, ' µs')],
+        ['This phone’s gap', num(d.ownGap, 1, ' µs')],
+        ['Other phone’s gap', num(d.otherGap, 1, ' µs')],
+      ]],
+      ['Alarm', [
+        ['Earlier than reference', num(s.shift, 2, ' µs')],
+        ['Goes off at', num(s.threshold, 2, ' µs')],
+        ['Room wobble', num(s.noise, 2, ' µs')],
+        ['On', s.alarm ? 'yes' : 'no'],
+        ['Something in the line', s.blocked ? 'yes, for ' + Math.round(s.blockedFor || 0) + ' s' : 'no'],
+      ]],
+      ['Signal and link', [
+        ['This phone’s chirp', s.hearOwn ? Math.round(s.ownDb) + ' dB' : 'not heard'],
+        ['Other phone’s chirp', s.hearOther ? Math.round(s.otherDb) + ' dB' : 'not heard'],
+        ['Readings used, last 10 s', d.used == null ? '–' : Math.round(d.used) + '%'],
+        ['Wi-Fi round trip', d.pingLastMs == null ? '–' : d.pingLastMs.toFixed(1) + ' ms (best ' + d.pingMs.toFixed(1) + ')'],
+        ['Distance', measured ? (d.measured * 100).toFixed(1) + ' cm, measured' : d.basis == null ? '–' : (d.basis * 100).toFixed(1) + ' cm, from the sound'],
+        ['Running for', Math.floor(s.seconds || 0) + ' s, ' + (s.rows || 0) + ' rows'],
+      ]],
+    ]
+    $('debugBody').innerHTML = groups.map(([title, rows]) =>
+      '<h4>' + title + '</h4><dl>' + rows.map(([k, v]) => '<div><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>').join('') + '</dl>').join('')
+  }
+
+  function esc(v) { return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]) }
+
+  const line = $('line')
+  function drawLine(time) {
+    const dpr = devicePixelRatio || 1
+    const w = line.clientWidth, h = line.clientHeight
+    if (!w) return
+    if (line.width !== Math.round(w * dpr)) { line.width = Math.round(w * dpr); line.height = Math.round(h * dpr) }
+    const g = line.getContext('2d')
+    g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    g.clearRect(0, 0, w, h)
+    const css = getComputedStyle(document.body)
+    const ink = css.getPropertyValue('--ink').trim(), flame = css.getPropertyValue('--flame').trim(), faint = css.getPropertyValue('--faint').trim()
+    const pad = 20, pw = 30, ph = 56, y = h / 2 + 4
+    const x0 = pad + pw, x1 = w - pad - pw
+    const paired = !!s.peer
+    const running = s.phase === 'learn' || s.phase === 'watch' || s.phase === 'start'
+    const heat = s.phase === 'watch' && s.threshold ? Math.max(0, Math.min(1, (s.shift || 0) / s.threshold)) : 0
+    const lineColor = s.alarm ? ink : mix(ink, flame, heat)
+
+    phone(g, pad, y - ph / 2, pw, ph, ink, true)
+    phone(g, w - pad - pw, y - ph / 2, pw, ph, paired ? ink : faint, paired)
+
+    g.lineCap = 'round'
+    if (paired && s.blocked && !s.alarm) {
+      g.strokeStyle = faint
+      g.lineWidth = 2
+      g.setLineDash([2, 7])
+      g.beginPath(); g.moveTo(x0 + 10, y); g.lineTo(x1 - 10, y); g.stroke()
+      g.setLineDash([])
+    } else if (paired) {
+      g.strokeStyle = lineColor
+      g.globalAlpha = running ? 1 : 0.4
+      g.lineWidth = 2 + 3 * heat
+      g.beginPath(); g.moveTo(x0 + 10, y); g.lineTo(x1 - 10, y); g.stroke()
+      g.globalAlpha = 1
+    } else {
+      g.strokeStyle = faint
+      g.lineWidth = 2
+      g.setLineDash([2, 7])
+      g.beginPath(); g.moveTo(x0 + 10, y); g.lineTo(x1 - 10, y); g.stroke()
+      g.setLineDash([])
+    }
+
+    const span = x1 - x0 - 20
+    const t = still ? 0.35 : time / 1000
+    g.fillStyle = paired ? lineColor : ink
+    const lanes = paired ? [[1, 0], [-1, 0.5]] : [[1, 0]]
+    for (const [dir, lag] of lanes) {
+      for (let k = 0; k < 2; k++) {
+        let f = ((t * 0.55 + lag + k * 0.5) % 1)
+        if (!paired && f > 0.45) continue
+        const x = dir > 0 ? x0 + 10 + f * span : x1 - 10 - f * span
+        const a = paired ? Math.sin(Math.PI * f) : Math.max(0, 1 - f / 0.45)
+        g.globalAlpha = 0.25 + 0.75 * a
+        pill(g, x - 7, y - (paired ? 2.5 : 2.5), 14, 5)
+      }
+    }
+    g.globalAlpha = 1
+
+    if (s.phase === 'watch' && s.distance != null) {
+      g.font = '500 13px Inter, sans-serif'
+      g.fillStyle = s.alarm ? ink : css.getPropertyValue('--muted').trim()
+      g.textAlign = 'center'
+      g.fillText(s.distance.toFixed(2) + ' m', w / 2, y - 16)
+    }
+  }
+
+  function phone(g, x, y, w, h, color, solid) {
+    g.strokeStyle = color
+    g.lineWidth = 2
+    rr(g, x, y, w, h, 7); g.stroke()
+    g.fillStyle = color
+    g.globalAlpha = solid ? 1 : 0.6
+    pill(g, x + w / 2 - 6, y + h - 9, 12, 3)
+    g.globalAlpha = 1
+  }
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r) }
+  function pill(g, x, y, w, h) { rr(g, x, y, w, h, h / 2); g.fill() }
+  function mix(a, b, t) {
+    const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
+    if (a.length < 7 || b.length < 7) return a
+    const [x, y] = [p(a), p(b)]
+    return 'rgb(' + x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',') + ')'
+  }
+
+  const chart = $('chart')
+  function drawChart() {
+    if (s.phase !== 'watch') return
+    const dpr = devicePixelRatio || 1
+    const w = chart.clientWidth, h = chart.clientHeight
+    if (!w) return
+    if (chart.width !== Math.round(w * dpr)) { chart.width = Math.round(w * dpr); chart.height = Math.round(h * dpr) }
+    const g = chart.getContext('2d')
+    g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    g.clearRect(0, 0, w, h)
+    const css = getComputedStyle(document.body)
+    const ink = css.getPropertyValue('--ink').trim(), flame = css.getPropertyValue('--flame').trim(), muted = css.getPropertyValue('--faint').trim()
+    const rule = s.alarm ? 'rgba(0,0,0,.25)' : '#262626'
+    const pts = s.trace || []
+    const thr = s.threshold || 1
+    let lo = -thr * 0.6, hi = thr * 1.6
+    for (const [, v] of pts) { lo = Math.min(lo, v); hi = Math.max(hi, v) }
+    const span = hi - lo
+    lo -= span * 0.06; hi += span * 0.06
+    const L = 34, R = 4, T = 6, B = 20
+    const X = (t) => L + ((t + 60) / 60) * (w - L - R)
+    const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (h - T - B)
+    g.font = '500 11px Inter, sans-serif'
+    g.textBaseline = 'middle'
+    for (const [v, label] of [[0, '0'], [thr, fmt(thr)]]) {
+      g.strokeStyle = v === 0 ? rule : (s.alarm ? ink : muted)
+      g.lineWidth = 1
+      g.setLineDash(v === 0 ? [] : [4, 4])
+      g.beginPath(); g.moveTo(L, Y(v)); g.lineTo(w - R, Y(v)); g.stroke()
+      g.setLineDash([])
+      g.fillStyle = s.alarm ? ink : muted
+      g.textAlign = 'right'
+      g.fillText(label, L - 8, Y(v))
+    }
+    g.textAlign = 'right'; g.textBaseline = 'alphabetic'
+    g.fillStyle = s.alarm ? ink : muted
+    g.fillText('alarm', w - R, Y(thr) - 6)
+    g.textAlign = 'left'
+    g.fillText('60 s ago', L, h - 4)
+    g.textAlign = 'right'
+    g.fillText('now', w - R, h - 4)
+    for (const [t, what] of s.marks || []) {
+      const x = X(t)
+      g.strokeStyle = s.alarm ? ink : muted
+      g.setLineDash([2, 3])
+      g.beginPath(); g.moveTo(x, T); g.lineTo(x, h - B); g.stroke()
+      g.setLineDash([])
+      g.fillStyle = s.alarm ? ink : muted
+      g.textAlign = x > w - 60 ? 'right' : 'left'
+      g.fillText(MARK_LABEL[what] || what, x + (x > w - 60 ? -4 : 4), T + 10)
+    }
+    if (pts.length > 1) {
+      g.strokeStyle = s.alarm ? ink : flame
+      g.lineWidth = 2.25
+      g.lineJoin = 'round'
+      g.beginPath()
+      pts.forEach(([t, v], i) => (i ? g.lineTo(X(t), Y(v)) : g.moveTo(X(t), Y(v))))
+      g.stroke()
+    }
+  }
+
+  const MARK_LABEL = { lit: 'lit', out: 'out', other: 'not flame', 'other-end': 'stopped' }
+
+  function frame(time) {
+    drawLine(time)
+    drawChart()
+    requestAnimationFrame(frame)
+  }
+
+  function settingsState() {
+    for (const b of $('sens').children) b.setAttribute('aria-pressed', String(b.dataset.v === s.sensitivity))
+    for (const b of $('band').children) { b.setAttribute('aria-pressed', String(b.dataset.v === s.band)); b.disabled = !s.first && !!s.peer }
+    $('sensNote').textContent = s.threshold != null ? 'The alarm goes off at ' + fmt(s.threshold) + ' µs early. The room wobbles by about ' + fmt(s.noise, 2) + ' µs by itself.' : 'Set from the room’s own wobble once it has been learned.'
+    $('bandNote').textContent = !s.first && s.peer ? 'Set on ' + s.peer + ', the first phone.' : 'High is barely heard by most people. Middle is louder and carries further.'
+    $('sound').setAttribute('aria-checked', String(!!s.sound))
+    $('debugOn').setAttribute('aria-checked', String(debugOn))
+  }
+  function openSheet(id) { $(id).classList.add('open'); tap() }
+  function closeSheets() { let any = false; for (const el of document.querySelectorAll('.sheet.open')) { el.classList.remove('open'); any = true } return any }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-do]')
+    if (b) {
+      tap()
+      const what = b.dataset.do
+      if (what === 'mic') bridge && bridge.askMic()
+      if (what === 'mark') { const next = s.lit ? 'out' : 'lit'; s.lit = !s.lit; bridge && bridge.mark(next); actions(); toast(next === 'lit' ? 'Marked: flame lit.' : 'Marked: flame out.') }
+      if (what === 'other') { const next = s.other ? 'other-end' : 'other'; s.other = !s.other; bridge && bridge.mark(next); actions(); toast(next === 'other' ? 'Marked: not a flame. Tap again when it stops.' : 'Marked: it stopped.') }
+      if (what === 'settings') openSheet('settings')
+    }
+    const seg = e.target.closest('.seg button')
+    if (seg && !seg.disabled) {
+      tap()
+      if (seg.parentElement.id === 'sens') { s.sensitivity = seg.dataset.v; bridge && bridge.sensitivity(seg.dataset.v) }
+      if (seg.parentElement.id === 'band') { s.band = seg.dataset.v; bridge && bridge.band(seg.dataset.v) }
+      settingsState()
+    }
+    if (e.target.classList.contains('sheet')) closeSheets()
+  })
+  $('sound').addEventListener('click', () => { s.sound = !s.sound; bridge && bridge.sound(s.sound); settingsState(); tap() })
+  $('debugOn').addEventListener('click', () => {
+    debugOn = !debugOn
+    try { localStorage.setItem('ee-debug', debugOn ? '1' : '0') } catch (_) {}
+    render()
+    tap()
+  })
+  $('setDistance').addEventListener('click', () => {
+    const d = s.debug || {}
+    $('distanceInput').value = d.measured != null ? String(Math.round(d.measured * 1000) / 10) : ''
+    openSheet('distance')
+    setTimeout(() => $('distanceInput').focus(), 250)
+  })
+  $('distanceGo').addEventListener('click', () => {
+    const v = $('distanceInput').value.trim()
+    const ok = bridge ? bridge.distance(v) : true
+    closeSheets()
+    toast(!ok ? 'Type the distance in cm, between 10 and 1000.' : v ? 'Speeds now use ' + v + ' cm.' : 'Speeds now take the air as 20 °C at the start.')
+  })
+  $('distanceClear').addEventListener('click', () => {
+    bridge && bridge.distance('')
+    closeSheets()
+    toast('Speeds now take the air as 20 °C at the start.')
+  })
+  $('relearn').addEventListener('click', () => { bridge && bridge.relearn(); closeSheets(); toast('Learning the room again.') })
+  $('closeSettings').addEventListener('click', closeSheets)
+  $('saveTest').addEventListener('click', () => { closeSheets(); toast(bridge ? bridge.save() : 'Saved to Download/Early Echo') })
+  $('typeAddress').addEventListener('click', () => { openSheet('address'); setTimeout(() => $('addressInput').focus(), 250) })
+  $('addressCancel').addEventListener('click', closeSheets)
+  $('addressGo').addEventListener('click', () => {
+    const v = $('addressInput').value.trim()
+    const ok = bridge ? bridge.connect(v) : /^\d+\.\d+\.\d+\.\d+$/.test(v)
+    closeSheets()
+    toast(ok ? 'Calling ' + v + '…' : 'That doesn’t look like an address.')
+  })
+
+  window.EEUI = {
+    update(next) { s = next; render() },
+    back() { return closeSheets() },
+  }
+
+  if (!bridge) {
+    const q = new URLSearchParams(location.search)
+    if (q.get('debug') === '1') debugOn = true
+    const fake = (t) => {
+      const phase = q.get('phase') || 'watch'
+      const alarm = q.get('alarm') === '1'
+      const blocked = q.get('blocked') === '1'
+      const trace = []
+      for (let i = 0; i < 240; i++) {
+        const tt = -60 + i * 0.25
+        const bump = alarm ? Math.max(0, Math.min(1, (tt + 12) / 2)) * 2.4 : (tt > -40 && tt < -28 ? Math.sin(((tt + 40) / 12) * Math.PI) * 0.7 : 0)
+        trace.push([tt, Math.sin(i * 0.37) * 0.09 + Math.sin(i * 0.11) * 0.06 + bump])
+      }
+      return {
+        phase, me: 'Pixel 8', addresses: ['192.168.43.17'], first: true, peer: phase === 'search' || phase === 'mic' ? null : 'Galaxy A54',
+        band: 'HIGH', sensitivity: 'NORMAL', sound: false, ownDb: 44, otherDb: 31, hearOwn: true, hearOther: phase !== 'start' || t > 2500, clocks: t > 4000,
+        distance: 1.18, learnLeft: Math.max(0, 7.4 - t / 1000), shift: trace[trace.length - 1][1], threshold: 1.0, noise: 0.11,
+        alarm, alarmFor: alarm ? 9 : null, blocked, blockedFor: blocked ? 4 : null, lit: alarm, other: false, trace, marks: alarm ? [[-14, 'lit']] : [], seconds: t / 1000 + 6, rows: Math.round(t / 42.7) + 140, notice: null, error: null,
+        debug: {
+          sum: 5231.40 - trace[trace.length - 1][1], raw: 5231.62 - trace[trace.length - 1][1], base: 5231.40, first: 5232.10, low: 5228.9, high: 5233.0,
+          ownGap: 24000.0, otherGap: 23898.7, measured: null, basis: 1.0003, speed: 343.25, speedRef: 343.25, speedFirst: 343.21,
+          temp: 20.07, tempRef: 20.07, tempFirst: 20.0, used: 98, pingMs: 4.2, pingLastMs: 6.8,
+        },
+      }
+    }
+    const t0 = performance.now()
+    setInterval(() => window.EEUI.update(fake(performance.now() - t0)), 200)
+    window.EEUI.update(fake(0))
+  }
+  requestAnimationFrame(frame)
+})()
+</script>
+</body>
+</html>

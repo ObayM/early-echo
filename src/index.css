@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-ground: #000;
+  --color-surface: #111;
+  --color-raised: #1d1d1d;
+  --color-active: #262626;
+  --color-rule: #1f1f1f;
+  --color-control: #444;
+  --color-ink: #fff;
+  --color-muted: #b4b4b4;
+  --color-faint: #949494;
+  --color-flame: #ff9a3d;
+  --color-out: #e9e9e9;
+  --color-broke: #666;
+  --color-grid: #262626;
+  --color-wrong: #e5484d;
+}
+
+html {
+  background: var(--color-ground);
+  color-scheme: dark;
+}
+body {
+  @apply bg-ground font-sans text-sm text-ink antialiased;
+}
+:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+svg text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  fill: var(--color-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes ee-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
